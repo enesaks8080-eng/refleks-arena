@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#101813">
+<title>Refleks Masa Tenisi</title>
+<style>
+:root{--bg:#101813;--panel:#19251d;--green:#35d477;--muted:#809187;--line:#46564b}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 20%,#203328 0,#101813 58%);color:#f3f7f4;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;justify-content:center}
+.app{width:min(100%,430px);min-height:100vh;padding:18px 20px 24px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;justify-content:space-between;align-items:center}
+.logo{font-weight:850;letter-spacing:.12em;font-size:13px;color:#dce9df}
+.pill{font-size:11px;color:#a8b8ad;border:1px solid #34473a;padding:6px 10px;border-radius:99px}
+.score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;background:#19251d;border:1px solid #2a3a2e;border-radius:18px;padding:13px 16px}
+.player{text-align:center}.player small{display:block;color:#8fa196;font-size:10px;letter-spacing:.12em}.player strong{font-size:30px;line-height:1.2}.player:last-child{text-align:center}
+.score .dash{color:#66786b;font-size:14px}
+.arena{flex:1;min-height:430px;display:flex;align-items:center;justify-content:center;position:relative;padding:8px 0}
+.track-wrap{height:min(57vh,560px);min-height:390px;width:46px;display:flex;justify-content:center;position:relative}
+.track{height:100%;width:18px;display:flex;flex-direction:column;gap:3px;position:relative}
+.cell{height:0;flex:1;border-radius:2px;background:#58685d;opacity:.82;transition:background .08s,opacity .08s}
+.cell.zone{background:#2ebd68;opacity:1;box-shadow:0 0 5px #2ebd6840;cursor:pointer;touch-action:manipulation}
+.cell.active{background:#e8fff0;box-shadow:0 0 12px #b8ffd0}
+.ball{position:absolute;left:50%;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 13px #fff,0 0 26px #73ffa4;transform:translate(-50%,-50%);z-index:3;pointer-events:none}
+.zone-label{position:absolute;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:.12em;color:#a8c4af;white-space:nowrap}
+.zone-label.top{top:-22px}.zone-label.bottom{bottom:-22px}
+.midline{position:absolute;left:50%;top:50%;height:1px;width:54px;background:#ffffff26;transform:translate(-50%,-50%)}
+.sidehint{position:absolute;right:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;color:#53685a;font-size:9px;letter-spacing:.2em}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.count{font-size:76px;font-weight:900;text-shadow:0 6px 30px #000;display:none}
+.status{text-align:center;color:#9aada0;font-size:12px;min-height:18px}
+.controls{display:flex;flex-direction:column;gap:10px}
+.hit{border:0;border-radius:17px;background:linear-gradient(180deg,#43e487,#1dbb62);color:#062512;font-weight:950;letter-spacing:.12em;font-size:20px;padding:19px;box-shadow:0 7px 0 #11733b,0 12px 28px #20c56a26;touch-action:manipulation}
+.hit:active{transform:translateY(4px);box-shadow:0 3px 0 #11733b}
+.hit:disabled{filter:grayscale(.7);opacity:.5}
+.subrow{display:flex;gap:9px}.subrow button{flex:1;background:#1c2a21;color:#d9e6dc;border:1px solid #33463a;border-radius:12px;padding:11px;font-weight:650}
+.help{font-size:11px;color:#829488;text-align:center;line-height:1.5}
+.result{position:absolute;inset:0;background:#0c130eea;border-radius:22px;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:5;text-align:center;padding:20px}
+.result h2{margin:0;font-size:27px}.result p{margin:0;color:#a7b8ab;font-size:13px}
+.result button{background:var(--green);border:0;border-radius:12px;padding:13px 24px;font-weight:850;color:#062512}
+@media(max-height:700px){.app{gap:9px;padding-top:12px}.arena{min-height:340px}.track-wrap{height:48vh;min-height:330px}.score{padding:8px 12px}.player strong{font-size:25px}.hit{padding:15px}}
+</style>
+</head>
+<body>
+<main class="app">
+<header><div class="logo">🏓 REFLEKS ARENA</div><div class="pill">İLK 5 PUAN KAZANIR</div></header>
+<section class="score">
+  <div class="player"><small>SEN</small><strong id="you">0</strong></div>
+  <div class="dash">—</div>
+  <div class="player"><small>RAKİP · BOT</small><strong id="bot">0</strong></div>
+</section>
+<section class="arena">
+  <div class="track-wrap">
+    <div class="zone-label top">RAKİP VURUŞ ALANI</div>
+    <div class="track" id="track"></div>
+    <div class="ball" id="ball" style="top:50%"></div>
+    <div class="midline"></div>
+    <div class="zone-label bottom">SENİN VURUŞ ALANIN</div>
+  </div>
+  <div class="sidehint">35 KUTUCUK</div>
+  <div class="overlay"><div class="count" id="count">3</div></div>
+  <div class="result" id="result"><h2 id="resultTitle">Maç bitti!</h2><p id="resultText"></p><button id="again">YENİDEN OYNA</button></div>
+</section>
+<div class="status" id="status">Başlamak için oyunu başlat.</div>
+<section class="controls">
+  <button class="hit" id="hit" disabled>VUR</button>
+  <div class="subrow"><button id="start">MAÇI BAŞLAT</button><button id="reset">SKORU SIFIRLA</button></div>
+  <div class="help">Top senin yeşil alanına girince yeşil kutucuklardan birine dokun. Arka köşeye yakın dokunuşlar daha hızlı vuruş gönderir; top yeşil alanın en arkasına ulaşırsa puanı rakip alır.</div>
+</section>
+</main>
+<script>
+const N=35,Z=6,track=document.getElementById('track'),ball=document.getElementById('ball');
+const hit=document.getElementById('hit'),start=document.getElementById('start'),statusEl=document.getElementById('status'),countEl=document.getElementById('count'),result=document.getElementById('result');
+let cells=[],you=0,bot=0,running=false,waiting=false,pos=17,dir=1,raf=0,last=0,speed=.010,lastBotAction=0;
+for(let i=0;i<N;i++){
+ const c=document.createElement('div');c.className='cell'+(i<Z||i>=N-Z?' zone':'');c.dataset.index=i;
+ if(i>=N-Z)c.addEventListener('click',()=>playerHit(i));
+ track.appendChild(c);cells.push(c);
+}
+function scores(){document.getElementById('you').textContent=you;document.getElementById('bot').textContent=bot}
+function paint(){cells.forEach((c,i)=>c.classList.toggle('active',Math.abs(i-pos)<.55));ball.style.top=(pos/(N-1)*100)+'%'}
+function say(t){statusEl.textContent=t}
+function stop(){running=false;cancelAnimationFrame(raf);hit.disabled=true}
+function point(who){
+ stop();if(who==='you')you++;else bot++;scores();
+ if(you>=5||bot>=5){document.getElementById('resultTitle').textContent=you>=5?'ŞAMPİYON SENSİN!':'RAKİP KAZANDI';document.getElementById('resultText').textContent=`Sonuç: ${you} – ${bot}`;result.style.display='flex';say('Maç tamamlandı.');return}
+ say((who==='you'?'Puan senin!':'Rakip puan aldı!')+' Yeni servis hazırlanıyor.');setTimeout(serve,900);
+}
+function serve(){if(you>=5||bot>=5)return;pos=17;dir=Math.random()<.5?1:-1;speed=.010+Math.random()*.002;waiting=false;running=true;hit.disabled=true;last=0;lastBotAction=performance.now();paint();say('Top oyuna girdi!');raf=requestAnimationFrame(loop)}
+function playerHit(index){
+ if(!running||!waiting||dir<0||pos<N-Z||pos>N-1)return;
+ const depth=(index-(N-Z))/(Z-1);
+ dir=-1;waiting=false;hit.disabled=true;speed=.0105+depth*.010+Math.random()*.002;
+ lastBotAction=performance.now();say(depth>.72?'Köşeye yakın güçlü vuruş!':'Güzel vuruş! Top karşıya gidiyor.');
+}
+function loop(ts){
+ if(!running)return;if(!last)last=ts;const dt=Math.min(34,ts-last);last=ts;
+ const edge=Math.min(pos,N-1-pos),cornerBoost=(1-edge/(N/2))*.48;
+ pos+=dir*speed*(1+cornerBoost)*dt;
+ if(pos<=0){point('you');return}
+ if(pos>=N-1){point('bot');return}
+ if(dir>0&&pos>=N-Z){
+  if(!waiting){waiting=true;hit.disabled=false;say('TOP YEŞİL ALANDA! Bir yeşil kutucuğa dokun.')}
+ }else if(dir<0&&pos<=Z-1){
+  if(!waiting){waiting=true;hit.disabled=true;lastBotAction=ts}
+  if(ts-lastBotAction>270+Math.random()*100){lastBotAction=ts;if(Math.random()<.86){dir=1;waiting=false;speed=.010+Math.random()*.004}else{point('you');return}}
+ }else if(waiting){waiting=false;hit.disabled=true}
+ paint();raf=requestAnimationFrame(loop);
+}
+hit.addEventListener('click',()=>{if(running&&waiting&&dir>0)playerHit(N-Z+2)});
+function countdown(){let n=3;countEl.style.display='block';countEl.textContent=n;hit.disabled=true;let timer=setInterval(()=>{n--;if(n>0)countEl.textContent=n;else if(n===0)countEl.textContent='BAŞLA!';else{clearInterval(timer);countEl.style.display='none';serve()}},700)}
+start.addEventListener('click',()=>{stop();result.style.display='none';you=0;bot=0;scores();say('Hazırlan!');countdown()});
+document.getElementById('reset').addEventListener('click',()=>{stop();you=0;bot=0;scores();pos=17;paint();result.style.display='none';countEl.style.display='none';say('Skor sıfırlandı. Başlamak için maçı başlat.')});
+document.getElementById('again').addEventListener('click',()=>{result.style.display='none';start.click()});
+paint();
+</script>
+</body>
+</html>
