@@ -51,71 +51,262 @@ button{border:0;border-radius:12px;padding:13px;font-weight:850;cursor:pointer}b
  <div class="arena" id="arena"><div class="track-wrap"><div class="zlabel top">RAKİP VURUŞ ALANI</div><div class="track" id="track"></div><div class="ball" id="ball" style="top:50%"></div><div class="zlabel bottom">SENİN VURUŞ ALANIN</div><div class="flash" id="flash"></div></div><div class="count hidden" id="count"></div></div>
  <div class="toast" id="toast"></div><div class="status" id="status">Rakibin bekleniyor...</div>
  <button id="hit" class="primary hit" disabled>VUR</button>
- <p class="help">Top senin yeşil alanına geldiğinde yeşil kutucuğa dokun. En dıştaki son 2-3 kutucuk güçlü vuruş ve parlama efekti verir.</p>
+ <p class="help">Top sana yaklaşınca VUR! İlk 4 hücre normal, son 4 hücre süper vuruş. Köşeye yaklaştıkça risk artar!</p>
  <div class="panel"><div class="roomline"><b style="font-size:13px">Turnuva ağacı</b><span class="muted" id="round">Tur 1</span></div><div class="bracket" id="bracket"></div></div>
 </section>
 <div id="error" class="muted" style="color:#ff9a9a;text-align:center"></div>
 </main>
 <script src="/socket.io/socket.io.js"></script>
-<script>
-const socket=io();let myId=null,isHost=false,roomCode=null,roomState=null,mySide=-1,canHit=false,matchLive=false,lastState=null;
-const $=id=>document.getElementById(id);
-const home=$('home'),lobby=$('lobby'),game=$('game');
-function show(which){home.classList.toggle('hidden',which!=='home');lobby.classList.toggle('hidden',which!=='lobby');game.classList.toggle('hidden',which!=='game')}
-function err(t){$('error').textContent=t||''}
-function makeRoom(){const name=$('name').value.trim()||'Oyuncu';socket.emit('room:create',{name})}
-$('create').onclick=makeRoom;
-$('join').onclick=()=>{const name=$('name').value.trim()||'Oyuncu';socket.emit('room:join',{name,code:$('roomCode').value.trim().toUpperCase()})};
-$('copy').onclick=async()=>{try{await navigator.clipboard.writeText(roomCode);$('copy').textContent='KOPYALANDI!'}catch{$('copy').textContent=roomCode}};
-$('begin').onclick=()=>socket.emit('tournament:start');
-socket.on('connect',()=>{myId=socket.id});
-socket.on('app:error',err);
-socket.on('room:joined',d=>{roomCode=d.code;myId=d.playerId;isHost=d.host;$('code').textContent=roomCode;$('begin').classList.toggle('hidden',!isHost);show('lobby');err('')});
-socket.on('room:update',r=>{
- roomState=r;$('playerCount').textContent=r.players.length;
- $('players').innerHTML=r.players.map(p=>`<div class="person"><span>${escapeHtml(p.name)}</span><span>${p.id===r.hostId?'👑 Oda sahibi':'✓ Hazır'}</span></div>`).join('');
- $('round').textContent='Tur '+(r.round||1);
- $('bracket').innerHTML=r.bracket.map(m=>`<div class="matchrow">${m.players.map(p=>p?escapeHtml(p.name):'—').join(' vs ')} ${m.winner?' · Kazanan: '+escapeHtml((r.players.find(p=>p.id===m.winner)||{}).name||''):'· Bekliyor'}</div>`).join('');
- if(r.status==='lobby')show('lobby');
- if(r.status==='tournament'&&r.currentMatch){
-   show('game');const idx=r.currentMatch.players.findIndex(p=>p&&p.id===myId);
-   mySide=idx;$('p1name').textContent=r.currentMatch.players[0]?.name||'Oyuncu 1';$('p2name').textContent=r.currentMatch.players[1]?.name||'Oyuncu 2';
-   $('s1').textContent=r.currentMatch.score[0];$('s2').textContent=r.currentMatch.score[1];
-   if(idx<0){$('status').textContent='Sıradaki maçını bekliyorsun. Diğer maç oynanıyor.';$('hit').disabled=true}
- }
-});
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-const track=$('track'),cells=[];for(let i=0;i<35;i++){const c=document.createElement('div');c.className='cell'+(i<6||i>=29?' zone':'');c.dataset.i=i;c.onclick=()=>tapCell(i);track.append(c);cells.push(c)}
-function tapCell(i){
- if(!canHit||mySide<0)return;
- const localCell=mySide===0?5-i:i-29;
- if(localCell<0||localCell>5)return;
- socket.emit('match:hit',{cell:localCell});canHit=false;$('hit').disabled=true;
+
+const socket = io();
+let myId = null, isHost = false, roomCode = null;
+let roomState = null, mySide = -1, canHit = false, lastState = null;
+
+const $ = id => document.getElementById(id);
+const home = $("home"), lobby = $("lobby"), game = $("game");
+
+function show(which) {
+  home.classList.toggle("hidden", which !== "home");
+  lobby.classList.toggle("hidden", which !== "lobby");
+  game.classList.toggle("hidden", which !== "game");
 }
-$('hit').onclick=()=>{if(canHit)tapCell(mySide===0?2:32)};
-function updateBall(pos){
- const p=Math.max(0,Math.min(1,pos));
- $('ball').style.top=(p*100)+'%';
- cells.forEach((c,i)=>c.classList.toggle('active',Math.abs(i-p*34)<.55));
- if(mySide===0)canHit=lastState?.dir<0&&p<=.17&&p>0;
- else if(mySide===1)canHit=lastState?.dir>0&&p>=.83&&p<1;
- $('hit').disabled=!(canHit&&mySide>=0);
+
+function err(t) {
+  $("error").textContent = t || "";
 }
-socket.on('match:countdown',d=>{
- matchLive=false;canHit=false;$('hit').disabled=true;let n=d.seconds;$('count').classList.remove('hidden');$('count').textContent=n;
- const timer=setInterval(()=>{n--;if(n>0)$('count').textContent=n;else if(n===0)$('count').textContent='BAŞLA!';else{$('count').classList.add('hidden');clearInterval(timer)}},700);
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[c]));
+}
+
+$("create").onclick = () => {
+  socket.emit("room:create", {
+    name: $("name").value.trim() || "Oyuncu"
+  });
+};
+
+$("join").onclick = () => {
+  socket.emit("room:join", {
+    name: $("name").value.trim() || "Oyuncu",
+    code: $("roomCode").value.trim().toUpperCase()
+  });
+};
+
+$("copy").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(roomCode);
+    $("copy").textContent = "KOPYALANDI!";
+  } catch {
+    $("copy").textContent = roomCode;
+  }
+};
+
+$("begin").onclick = () => socket.emit("tournament:start");
+
+socket.on("connect", () => {
+  myId = socket.id;
 });
-socket.on('match:state',s=>{
- lastState=s;matchLive=s.phase==='playing';updateBall(s.ball);
- $('s1').textContent=s.score[0];$('s2').textContent=s.score[1];
- $('status').textContent=canHit?'TOP YEŞİL ALANDA! VUR!':'Top hareket ediyor...';
+
+socket.on("app:error", err);
+
+socket.on("room:joined", d => {
+  roomCode = d.code;
+  myId = d.playerId;
+  isHost = d.host;
+  $("code").textContent = roomCode;
+  $("begin").classList.toggle("hidden", !isHost);
+  show("lobby");
+  err("");
 });
-socket.on('match:hit',d=>{
- const good=d.hot;
- if(good){$('arena').classList.add('hot');$('flash').classList.remove('on');void $('flash').offsetWidth;$('flash').classList.add('on');$('toast').textContent='⚡ MÜKEMMEL VURUŞ!';setTimeout(()=>$('arena').classList.remove('hot'),450);setTimeout(()=>$('toast').textContent='',850)}
- else if(d.playerId===myId){$('toast').textContent='Güzel vuruş!';setTimeout(()=>$('toast').textContent='',650)}
+
+// Tam 40 görsel hücre; son 8 hücre oyuncunun vuruş alanı.
+const track = $("track");
+const cells = [];
+
+track.innerHTML = "";
+for (let i = 0; i < 40; i++) {
+  const c = document.createElement("div");
+  c.className = "cell" + (i >= 32 ? " zone" : "");
+  track.appendChild(c);
+  cells.push(c);
+}
+
+function updateScore(score) {
+  if (mySide === 1) {
+    $("s1").textContent = score[1];
+    $("s2").textContent = score[0];
+  } else {
+    $("s1").textContent = score[0];
+    $("s2").textContent = score[1];
+  }
+}
+
+function updateBall(serverBall, serverDir) {
+  if (mySide < 0) return;
+
+  // Her oyuncunun ekranında kendi tarafı aşağıda görünür.
+  const localBall = mySide === 0 ? 1 - serverBall : serverBall;
+  const localDir = mySide === 0 ? -serverDir : serverDir;
+
+  const p = Math.max(0, Math.min(1, localBall));
+  $("ball").style.top = (p * 100) + "%";
+
+  cells.forEach((c, i) => c.classList.remove("active"));
+
+  const cellNumber = Math.min(
+    8,
+    Math.floor(Math.max(0, (p - 0.78) / 0.22) * 8) + 1
+  );
+
+  if (p >= 0.78 && p < 1) {
+    cells[31 + cellNumber].classList.add("active");
+  }
+
+  canHit =
+    localDir > 0 &&
+    p >= 0.78 &&
+    p < 1;
+
+  $("hit").disabled = !canHit;
+
+  if (canHit) {
+    $("status").textContent =
+      "TOP GELİYOR! HÜCRE " + cellNumber + " / 8";
+  } else {
+    $("status").textContent = "Top hareket ediyor...";
+  }
+}
+
+socket.on("room:update", r => {
+  roomState = r;
+
+  $("playerCount").textContent = r.players.length;
+
+  $("players").innerHTML = r.players.map(p =>
+    `<div class="person">
+      <span>${escapeHtml(p.name)}</span>
+      <span>${p.id === r.hostId ? "👑 Oda sahibi" : "✓ Hazır"}</span>
+    </div>`
+  ).join("");
+
+  $("round").textContent = "Tur " + (r.round || 1);
+
+  $("bracket").innerHTML = r.bracket.map(m =>
+    `<div class="matchrow">
+      ${m.players.map(p => p ? escapeHtml(p.name) : "—").join(" vs ")}
+      ${m.winner ? " · Maç tamamlandı" : " · Bekliyor"}
+    </div>`
+  ).join("");
+
+  if (r.status === "lobby") {
+    show("lobby");
+    return;
+  }
+
+  if (r.status === "tournament" && r.currentMatch) {
+    show("game");
+
+    const players = r.currentMatch.players;
+    mySide = players.findIndex(p => p && p.id === myId);
+
+    if (mySide >= 0) {
+      const own = players[mySide];
+      const opponent = players[1 - mySide];
+
+      $("p1name").textContent = own?.name || "Sen";
+      $("p2name").textContent = opponent?.name || "Rakip";
+
+      $("s1").textContent = r.currentMatch.score[mySide];
+      $("s2").textContent = r.currentMatch.score[1 - mySide];
+    } else {
+      $("status").textContent = "Sıradaki maçını bekliyorsun.";
+      $("hit").disabled = true;
+    }
+  }
 });
-socket.on('match:point',d=>{$('s1').textContent=d.score[0];$('s2').textContent=d.score[1];canHit=false;$('hit').disabled=true;$('status').textContent='Puan! Yeni servis hazırlanıyor.'});
-socket.on('match:finished',d=>{$('status').textContent=d.winnerId===myId?'Maçı kazandın! Sonraki turu bekle.':d.winnerName+' kazandı. Sonraki tur hazırlanıyor.';canHit=false;$('hit').disabled=true});
-socket.on('tournament:finished',d=>{$('status').textContent='🏆 TURNUVA ŞAMPİYONU: '+d.champion;$('toast').textContent='Turnuva sona erdi!'});
-</script></body></html>
+
+socket.on("match:countdown", d => {
+  canHit = false;
+  $("hit").disabled = true;
+
+  let n = d.seconds;
+  $("count").classList.remove("hidden");
+  $("count").textContent = n;
+
+  const timer = setInterval(() => {
+    n--;
+
+    if (n > 0) {
+      $("count").textContent = n;
+    } else if (n === 0) {
+      $("count").textContent = "BAŞLA!";
+    } else {
+      $("count").classList.add("hidden");
+      clearInterval(timer);
+    }
+  }, 700);
+});
+
+socket.on("match:state", s => {
+  lastState = s;
+  updateScore(s.score);
+  updateBall(s.ball, s.dir);
+});
+
+$("hit").onclick = () => {
+  if (!canHit || mySide < 0) return;
+
+  canHit = false;
+  $("hit").disabled = true;
+  socket.emit("match:hit");
+};
+
+socket.on("match:hit-result", result => {
+  if (!result.ok && lastState) {
+    updateBall(lastState.ball, lastState.dir);
+  }
+});
+
+socket.on("match:hit", d => {
+  if (d.hot) {
+    $("arena").classList.add("hot");
+    $("flash").classList.remove("on");
+    void $("flash").offsetWidth;
+    $("flash").classList.add("on");
+
+    $("toast").textContent =
+      "⚡ SÜPER VURUŞ! HÜCRE " + d.cell;
+
+    setTimeout(() => $("arena").classList.remove("hot"), 450);
+    setTimeout(() => $("toast").textContent = "", 1000);
+  } else if (d.playerId === myId) {
+    $("toast").textContent = "GÜZEL VURUŞ!";
+    setTimeout(() => $("toast").textContent = "", 650);
+  }
+});
+
+socket.on("match:point", d => {
+  updateScore(d.score);
+  canHit = false;
+  $("hit").disabled = true;
+  $("status").textContent = "Puan! Yeni servis hazırlanıyor.";
+});
+
+socket.on("match:finished", d => {
+  $("status").textContent =
+    d.winnerId === myId
+      ? "Maçı kazandın! Sonraki turu bekle."
+      : d.winnerName + " kazandı. Sonraki tur hazırlanıyor.";
+
+  canHit = false;
+  $("hit").disabled = true;
+});
+
+socket.on("tournament:finished", d => {
+  $("status").textContent = "🏆 TURNUVA ŞAMPİYONU: " + d.champion;
+  $("toast").textContent = "Turnuva sona erdi!";
+});
+</script>
+</body></html>
