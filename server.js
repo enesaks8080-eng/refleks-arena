@@ -269,3 +269,8 @@ io.on("connection", socket => {
     lastHit: match.lastHit
   });
 });
+});
+
+server.listen(PORT, () => {
+  console.log(`Refleks Arena ${PORT} portunda çalışıyor.`);
+});
