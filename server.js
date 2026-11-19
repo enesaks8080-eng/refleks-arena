@@ -12,6 +12,8 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 const rooms = new Map();
 const PORT = process.env.PORT || 3000;
 const TICK_MS = 33;
+const START_SPEED = 0.009;
+const MAX_SPEED = 0.019;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const code = () => crypto.randomBytes(3).toString("hex").toUpperCase();
 
@@ -48,7 +50,7 @@ function playerRoom(socket) {
 }
 function createMatch(room, ids, round) {
   return { id: crypto.randomUUID(), players: ids, round, score: [0,0], ball: .5,
-    dir: Math.random() < .5 ? -1 : 1, speed: .0105, phase: "countdown",
+    dir: Math.random() < .5 ? -1 : 1, speed: START_SPEED, phase: "countdown",
     lastHit: null, lastHitAt: 0, startedAt: Date.now(), timer: null };
 }
 function startMatch(room, match) {
@@ -61,7 +63,7 @@ function startMatch(room, match) {
     match.phase = "playing";
     match.ball = .5;
     match.dir = Math.random() < .5 ? -1 : 1;
-    match.speed = .0105;
+    match.speed = START_SPEED;
     match.lastTick = Date.now();
     emitRoom(room);
     match.timer = setInterval(() => tick(room, match), TICK_MS);
@@ -73,10 +75,7 @@ function tick(room, match) {
   const now = Date.now();
   const dt = clamp(now - match.lastTick, 16, 50);
   match.lastTick = now;
-  const edge = Math.min(match.ball, 1 - match.ball);
-  const cornerBoost = (1 - edge / .5) * .30;
-  match.ball += match.dir * match.speed * (dt / 16.67) * (1 + cornerBoost);
-
+  match.ball += match.dir * match.speed * (dt / 16.67);
   if (match.ball <= 0) { finishPoint(room, match, 1); return; } // top player missed; bottom wins
   if (match.ball >= 1) { finishPoint(room, match, 0); return; } // bottom player missed; top wins
 
@@ -87,7 +86,7 @@ function tick(room, match) {
   if (match.dir < 0 && match.ball <= .17 && now - match.lastHitAt > 700) {
     // Same receiving window for the top player.
   }
-  if (now % 2 < 1) io.to(room.code).emit("match:state", {
+  io.to(room.code).emit("match:state", {
     matchId: match.id, ball: match.ball, dir: match.dir, speed: match.speed,
     score: match.score, phase: match.phase, lastHit: match.lastHit
   });
@@ -200,38 +199,73 @@ io.on("connection", socket => {
     if (room.players.size < 2) return emitError(socket, "Başlamak için en az 2 oyuncu gerekli.");
     if (!beginTournament(room)) return emitError(socket, "Turnuva başlatılamadı.");
   });
-  socket.on("match:hit", ({ cell }) => {
-    const room = playerRoom(socket), match = room?.currentMatch;
-    if (!room || !match || match.phase !== "playing") return;
-    const playerIndex = match.players.indexOf(socket.id);
-    if (playerIndex < 0) return;
-    const n = Math.max(0, Math.min(5, Number(cell) || 0));
-    const inZone = playerIndex === 0 ? match.dir < 0 && match.ball <= .17 && match.ball > 0
-                                 : match.dir > 0 && match.ball >= .83 && match.ball < 1;
-    if (!inZone) return;
-    // Cell 0 is nearer the middle; cell 5 is nearest the player's back edge.
-    const depth = n / 5;
-    const wasHot = depth >= .6;
-    match.dir *= -1;
-    match.speed = Math.min(.034, match.speed + .0015 + depth * .0011);
-    match.lastHit = { playerId: socket.id, hot: wasHot, depth, at: Date.now() };
-    match.lastHitAt = Date.now();
-    io.to(room.code).emit("match:hit", { playerId: socket.id, hot: wasHot, speed: match.speed, cell: n });
+  socket.on("match:hit", () => {
+  const room = playerRoom(socket);
+  const match = room?.currentMatch;
+
+  if (!room || !match || match.phase !== "playing") {
+    socket.emit("match:hit-result", { ok: false });
+    return;
+  }
+
+  const playerIndex = match.players.indexOf(socket.id);
+
+  if (playerIndex < 0) return;
+
+  // Her oyuncunun ekranında top kendisine doğru gelir.
+  const localBall = playerIndex === 0
+    ? 1 - match.ball
+    : match.ball;
+
+  const movingTowardPlayer = playerIndex === 0
+    ? match.dir < 0
+    : match.dir > 0;
+
+  if (!movingTowardPlayer || localBall < 0.78 || localBall >= 1) {
+    socket.emit("match:hit-result", { ok: false });
+    return;
+  }
+
+  const depth = (localBall - 0.78) / 0.22;
+  const cell = Math.min(8, Math.floor(depth * 8) + 1);
+
+  // İlk 4 hücre normal, son 4 hücre süper vuruş.
+  const hot = cell >= 5;
+
+  match.dir *= -1;
+  match.speed = Math.min(
+    MAX_SPEED,
+    match.speed + (hot ? 0.00065 : 0.00035)
+  );
+
+  match.lastHit = {
+    playerId: socket.id,
+    hot,
+    cell,
+    depth,
+    at: Date.now()
+  };
+
+  socket.emit("match:hit-result", {
+    ok: true,
+    hot,
+    cell
   });
-  socket.on("disconnect", () => {
-    const room = playerRoom(socket);
-    if (!room) return;
-    const wasHost = room.hostId === socket.id;
-    room.players.delete(socket.id);
-    if (room.currentMatch?.players.includes(socket.id)) {
-      const other = room.currentMatch.players.find(id => id !== socket.id);
-      if (other) finishPoint(room, room.currentMatch, room.currentMatch.players.indexOf(other));
-    }
-    if (room.players.size === 0) { stopMatch(room.currentMatch); rooms.delete(room.code); }
-    else {
-      if (wasHost) room.hostId = room.players.keys().next().value;
-      emitRoom(room);
-    }
+
+  io.to(room.code).emit("match:hit", {
+    playerId: socket.id,
+    hot,
+    speed: match.speed,
+    cell
+  });
+
+  io.to(room.code).emit("match:state", {
+    matchId: match.id,
+    ball: match.ball,
+    dir: match.dir,
+    speed: match.speed,
+    score: match.score,
+    phase: match.phase,
+    lastHit: match.lastHit
   });
 });
-server.listen(PORT, () => console.log(`Refleks Arena listening on ${PORT}`));
