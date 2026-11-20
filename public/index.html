@@ -30,6 +30,77 @@ button{border:0;border-radius:12px;padding:13px;font-weight:850;cursor:pointer}b
 .hot .ball{box-shadow:0 0 18px #fff,0 0 38px #45ff9a,0 0 60px #45ff9a}
 .toast{text-align:center;color:#75f2a6;font-weight:800;font-size:13px;min-height:18px}
 .bracket{display:grid;gap:5px;max-height:160px;overflow:auto}.matchrow{font-size:11px;color:#bdcabe;background:#101a13;border-radius:8px;padding:7px}
+
+/* NEON ARENA */
+body {
+  background: radial-gradient(ellipse at 50% 35%, #16442d 0%, #0b1711 55%, #050a07 100%);
+}
+
+.panel, .score {
+  background: linear-gradient(145deg, #1b3024, #101d15);
+  border: 1px solid #376347;
+  box-shadow: 0 8px 28px #0007, inset 0 0 18px #36e8790b;
+}
+
+.arena {
+  background: radial-gradient(ellipse, #173c29 0%, #0b1911 70%, transparent 100%);
+  border-radius: 24px;
+}
+
+.track {
+  filter: drop-shadow(0 0 8px #39ff8050);
+}
+
+.cell.zone {
+  background: linear-gradient(90deg, #168c48, #45f58a, #168c48);
+  box-shadow: 0 0 8px #35ff8055;
+}
+
+.cell.active {
+  background: white;
+  box-shadow: 0 0 12px white, 0 0 25px #42ff91;
+  transform: scaleX(1.45);
+}
+
+.ball {
+  width: 15px;
+  height: 15px;
+  box-shadow: 0 0 12px white, 0 0 25px #43ff91, 0 0 45px #43ff91;
+}
+
+.ball::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 55px;
+  left: 50%;
+  bottom: 7px;
+  transform: translateX(-50%);
+  background: linear-gradient(to bottom, #43ff9170, transparent);
+  filter: blur(7px);
+  border-radius: 50%;
+  z-index: -1;
+}
+
+.hit {
+  border: 1px solid #8affb5;
+  box-shadow: 0 6px 0 #11733b, 0 0 20px #32e87935;
+  transition: transform .12s, filter .12s;
+}
+
+.hit:active {
+  transform: translateY(4px) scale(.98);
+  filter: brightness(1.25);
+  box-shadow: 0 2px 0 #11733b, 0 0 25px #32e87980;
+}
+
+.score strong {
+  text-shadow: 0 0 15px #50ff9a80;
+}
+
+.logo {
+  text-shadow: 0 0 15px #45ff9a80;
+}
 </style></head>
 <body><main class="app">
 <header><div class="logo">🏓 REFLEKS ARENA</div><div class="pill">İLK 5 PUAN</div></header>
