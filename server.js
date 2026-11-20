@@ -97,7 +97,7 @@ function finishPoint(room, match, winnerIndex) {
   match.score[winnerIndex]++;
   match.phase = "point";
   io.to(room.code).emit("match:point", { winnerId: match.players[winnerIndex], score: match.score });
-  if (match.score[winnerIndex] >= 10) {
+  if (match.score[winnerIndex] >= 5) {
     const winnerId = match.players[winnerIndex];
     match.winner = winnerId;
     match.phase = "finished";
