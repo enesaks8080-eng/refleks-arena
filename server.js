@@ -12,8 +12,9 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 const rooms = new Map();
 const PORT = process.env.PORT || 3000;
 const TICK_MS = 33;
-const START_SPEED = 0.009;
-const MAX_SPEED = 0.019;
+const START_SPEED = 0.005;
+const MAX_SPEED = 0.012;
+const HIT_CELLS = 10;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const code = () => crypto.randomBytes(3).toString("hex").toUpperCase();
 
@@ -112,7 +113,7 @@ function finishPoint(room, match, winnerIndex) {
       match.phase = "countdown";
       match.ball = .5;
       match.dir = Math.random() < .5 ? -1 : 1;
-      match.speed = .0105;
+      match.speed = START_SPEED;
       io.to(room.code).emit("match:countdown", { seconds: 2, matchId: match.id });
       setTimeout(() => {
         if (room.currentMatch?.id !== match.id) return;
@@ -227,10 +228,13 @@ io.on("connection", socket => {
   }
 
   const depth = (localBall - 0.78) / 0.22;
-  const cell = Math.min(8, Math.floor(depth * 8) + 1);
+const cell = Math.min(
+  HIT_CELLS,
+  Math.floor(depth * HIT_CELLS) + 1
+);
 
-  // İlk 4 hücre normal, son 4 hücre süper vuruş.
-  const hot = cell >= 5;
+// İlk 5 hücre normal, son 5 hücre süper vuruş.
+const hot = cell >= 6;
 
   match.dir *= -1;
   match.speed = Math.min(
