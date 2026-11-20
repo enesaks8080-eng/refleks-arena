@@ -51,7 +51,7 @@ button{border:0;border-radius:12px;padding:13px;font-weight:850;cursor:pointer}b
  <div class="arena" id="arena"><div class="track-wrap"><div class="zlabel top">RAKİP VURUŞ ALANI</div><div class="track" id="track"></div><div class="ball" id="ball" style="top:50%"></div><div class="zlabel bottom">SENİN VURUŞ ALANIN</div><div class="flash" id="flash"></div></div><div class="count hidden" id="count"></div></div>
  <div class="toast" id="toast"></div><div class="status" id="status">Rakibin bekleniyor...</div>
  <button id="hit" class="primary hit" disabled>VUR</button>
- <p class="help">Top sana yaklaşınca VUR! İlk 4 hücre normal, son 4 hücre süper vuruş. Köşeye yaklaştıkça risk artar!</p>
+ <p class="help">Top sana yaklaşınca VUR! İlk 5 hücre normal, son 5 hücre süper vuruş. Köşeye yaklaştıkça risk artar!</p>
  <div class="panel"><div class="roomline"><b style="font-size:13px">Turnuva ağacı</b><span class="muted" id="round">Tur 1</span></div><div class="bracket" id="bracket"></div></div>
 </section>
 <div id="error" class="muted" style="color:#ff9a9a;text-align:center"></div>
@@ -121,17 +121,17 @@ socket.on("room:joined", d => {
   err("");
 });
 
-// Tam 40 görsel hücre; son 8 hücre oyuncunun vuruş alanı.
+// Tam 40 görsel hücre; son 10 hücre oyuncunun vuruş alanı.
 const track = $("track");
 const cells = [];
 
 track.innerHTML = "";
 for (let i = 0; i < 40; i++) {
   const c = document.createElement("div");
-  c.className = "cell" + (i >= 32 ? " zone" : "");
+  c.className = "cell" + (i >= 30 ? " zone" : "");
   track.appendChild(c);
   cells.push(c);
-}
+ }
 
 function updateScore(score) {
   if (mySide === 1) {
@@ -156,13 +156,13 @@ function updateBall(serverBall, serverDir) {
   cells.forEach((c, i) => c.classList.remove("active"));
 
   const cellNumber = Math.min(
-    8,
-    Math.floor(Math.max(0, (p - 0.78) / 0.22) * 8) + 1
-  );
+  10,
+  Math.floor(Math.max(0, (p - 0.78) / 0.22) * 10) + 1
+);
 
-  if (p >= 0.78 && p < 1) {
-    cells[31 + cellNumber].classList.add("active");
-  }
+if (p >= 0.78 && p < 1) {
+  cells[29 + cellNumber].classList.add("active");
+}
 
   canHit =
     localDir > 0 &&
